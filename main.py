@@ -7,11 +7,6 @@ import time
 import sys
 
 def read_nonblocking(process):
-    """
-    Generator that yields complete lines from process.stdout without blocking.
-    Reads one character at a time and assembles lines manually.
-    This avoids Windows blocking issues with readline().
-    """
     buffer = ""
 
     while True:

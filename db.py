@@ -4,9 +4,6 @@ from mysql.connector import Error
 
 class PacketDB:
     def __init__(self):
-        """
-        Connect to the MySQL XAMPP database.
-        """
         try:
             #XAMPP Defaults
             self.conn = mysql.connector.connect(
