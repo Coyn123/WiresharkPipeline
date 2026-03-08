@@ -1,4 +1,3 @@
-# main.py
 from capture import init_capture
 from parser import parse_packet
 from classifier import classify
@@ -6,20 +5,19 @@ from db import PacketDB
 import time
 import sys
 
-def read_nonblocking(process):
+def read_line(process):
     buffer = ""
 
+    #Line-by-line reader
     while True:
         c = process.stdout.read(1)
 
-        # If process ended and buffer has content, yield it
         if c == "" and process.poll() is not None:
             if buffer:
                 yield buffer
             return
 
         if not c:
-            # No data available yet
             time.sleep(0.01)
             continue
 
@@ -36,9 +34,7 @@ def main():
     process = None
     db = None
 
-    # -----------------------------
-    # Initialize TShark
-    # -----------------------------
+    # Init TShark
     try:
         print("[INFO] Initializing TShark capture...", flush=True)
         process = init_capture()
@@ -49,9 +45,7 @@ def main():
         print(f"[ERROR] Initialization failed: {e}", flush=True)
         return
 
-    # -----------------------------
-    # Initialize DB
-    # -----------------------------
+    # Init DB
     try:
         db = PacketDB()
         print("[INFO] Connected to database.", flush=True)
@@ -66,7 +60,7 @@ def main():
     line_count = 0
 
     try:
-        for line in read_nonblocking(process):
+        for line in read_line(process):
 
             line = line.strip()
             if not line:
@@ -75,10 +69,11 @@ def main():
             line_count += 1
             print(f"[DEBUG] Raw line {line_count}: {line}", flush=True)
 
-            # Parse CSV line into structured packet
+            # Parse Here
             parsed = parse_packet(line)
             if not parsed:
                 continue
+
 
             # Insert main packet into DB
             try:
@@ -89,11 +84,15 @@ def main():
                 print(f"[WARN] Failed to insert packet: {e}", flush=True)
                 continue
 
-            # Classify protocol
+
+
+            # Classify here
             protocol = parsed["protocol"]
             proto_fields = parsed["proto_fields"]
 
-            # Insert into protocol-specific tables
+
+
+            # Insert here
             try:
                 if protocol == "TCP":
                     db.insert_tcp(packet_id, proto_fields)
@@ -106,7 +105,9 @@ def main():
             except Exception as e:
                 print(f"[WARN] Failed to insert {protocol} data: {e}", flush=True)
 
-            # Progress log
+
+
+            # Progress here
             if line_count % 100 == 0:
                 print(f"[INFO] Processed {line_count} packets", flush=True)
 
@@ -125,6 +126,7 @@ def main():
             except Exception as e:
                 print(f"[WARN] Failed to terminate TShark: {e}", flush=True)
 
+        #DB Close Here
         if db:
             try:
                 db.close()

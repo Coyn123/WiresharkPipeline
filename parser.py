@@ -1,14 +1,19 @@
 from classifier import classify
 
+#0 - 6
 BASE_FIELDS = [
     "timestamp", "src_ip", "dst_ip", "ip_version", "ip_proto", "frame_len", "ttl"
 ]
-
+#7-12 
 TCP_DB_FIELDS = ["src_port", "dst_port", "flags", "seq", "ack", "window_size"]
+#13-15
 UDP_DB_FIELDS = ["src_port", "dst_port", "length"]
+#16-19
 DNS_DB_FIELDS = ["query_name", "query_type", "answer_ip", "rcode"]
+#20-23
 TLS_DB_FIELDS = ["sni", "tls_version", "cipher_suite", "handshake_type"]
 
+#Needed for empty str -> Null store
 def safe_int(val):
     if not val:
         return None
@@ -19,6 +24,7 @@ def safe_int(val):
             return int(val, 16)
         except:
             return None
+
 
 def parse_packet(line):
     try:
@@ -35,7 +41,7 @@ def parse_packet(line):
         # Classify based on raw CSV
         proto = classify(values)
 
-        # Base packet (matches packets table)
+        # Base packet
         base = {
             "timestamp": values[0],
             "src_ip": values[1],

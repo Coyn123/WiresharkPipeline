@@ -1,11 +1,9 @@
-# db.py
 import mysql.connector
 from mysql.connector import Error
 
 class PacketDB:
     def __init__(self):
         try:
-            #XAMPP Defaults
             self.conn = mysql.connector.connect(
                 host="localhost",
                 user="root",
@@ -20,7 +18,15 @@ class PacketDB:
 
     def insert_packet(self, base):
         """
-        Insert main packet info and return auto-increment packet_id.
+        CORE STRUCTURE:
+        TRY:
+            SQL Insert Query
+            SQL Execute
+            SQL Finalize
+            SQL Return Packet Index in DB
+        EXCEPT:
+            Error Msg
+            Return None
         """
         try:
             sql = """
@@ -130,9 +136,6 @@ class PacketDB:
             print("[ERROR] TLS insert failed:", e)
 
     def close(self):
-        """
-        Close DB connection cleanly.
-        """
         try:
             if self.cursor:
                 self.cursor.close()

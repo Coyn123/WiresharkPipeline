@@ -1,10 +1,13 @@
 def classify(values):
-    # Must have at least IP header fields
+    # Less than 7 may be corrupted packet line
     if len(values) < 7:
         return "UNKNOWN"
 
+    #IP Protocol for FSM-quality
     ip_proto = values[4]
 
+
+    #Return Protocol Type
     if not ip_proto:
         return "UNKNOWN"
 

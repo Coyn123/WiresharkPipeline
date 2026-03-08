@@ -1,14 +1,8 @@
-# capture.py
 import sys
 import time
 import subprocess
 
 def init_capture():
-    """
-    Start a tshark subprocess capturing all relevant fields for IP/TCP/UDP/DNS/TLS.
-    Returns the subprocess object.
-    """
-
     cmd = [
         r"C:\Program Files\Wireshark\tshark.exe",
         "-n", # don't resolve names
