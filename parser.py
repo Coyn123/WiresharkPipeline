@@ -1,4 +1,26 @@
 from classifier import classify
+from datetime import datetime
+
+def parse_frame_time(ts_str):
+    try:
+        main, tz = ts_str[:-5], ts_str[-5:]
+
+        if "." in main:
+            date_part, frac = main.split(".", 1)
+            main = f"{date_part}.{frac[:6]}"
+        else:
+            main = f"{main}.000000"
+
+        dt = datetime.strptime(main + tz, "%Y-%m-%dT%H:%M:%S.%f%z")
+
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        print("[WARN] Failed to parse frame.time:", ts_str, e)
+        return None
+
+
+
+
 
 #0 - 6
 BASE_FIELDS = [
@@ -43,7 +65,7 @@ def parse_packet(line):
 
         # Base packet
         base = {
-            "timestamp": values[0],
+            "timestamp": parse_frame_time(values[0]),
             "src_ip": values[1],
             "dst_ip": values[2],
             "ip_version": safe_int(values[3]),
@@ -51,27 +73,31 @@ def parse_packet(line):
             "frame_len": safe_int(values[5]),
             "ttl": safe_int(values[6]),
         }
-
         # Protocol-specific extraction
         if proto == "TCP":
-            raw = values[7:13] + [""] * max(0, 6 - (len(values) - 7))
+            raw = values[7:13]
+            raw += [""] * (6 - len(raw))
             proto_fields = dict(zip(TCP_DB_FIELDS, [safe_int(v) for v in raw]))
 
         elif proto == "UDP":
-            raw = values[13:16] + [""] * max(0, 3 - (len(values) - 13))
+            raw = values[13:16]
+            raw += [""] * (3 - len(raw))
             proto_fields = dict(zip(UDP_DB_FIELDS, [safe_int(v) for v in raw]))
 
         elif proto == "DNS":
-            raw = values[16:20] + [""] * max(0, 4 - (len(values) - 16))
+            raw = values[16:20]
+            raw += [""] * (4 - len(raw))  # pad to 4 fields
             proto_fields = dict(zip(DNS_DB_FIELDS, raw))
             proto_fields["rcode"] = safe_int(proto_fields["rcode"])
 
         elif proto == "TLS":
-            raw = values[20:24] + [""] * max(0, 4 - (len(values) - 20))
+            raw = values[20:24]
+            raw += [""] * (4 - len(raw))  # pad to 4 fields
             proto_fields = dict(zip(TLS_DB_FIELDS, raw))
 
         else:
             proto_fields = {}
+
 
         return {
             "protocol": proto,

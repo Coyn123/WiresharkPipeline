@@ -1,17 +1,20 @@
 import sys
 import time
 import subprocess
+from datetime import datetime
+
 
 def init_capture():
     cmd = [
         r"C:\Program Files\Wireshark\tshark.exe",
-        "-n", # don't resolve names
-        "-i", "4", # network interface
-        "-T", "fields",  # output fields
-        "-E", "separator=,", # CSV separator
-        "-E", "occurrence=f", # first occurrence only
-        "-E", "header=n", # no headers
-        # Packet level
+        "-n",
+        "-i", "4",
+        "-T", "fields",
+        "-E", "separator=,",
+        "-E", "occurrence=f",
+        "-E", "header=n",
+
+        # Base fields
         "-e", "frame.time",
         "-e", "ip.src",
         "-e", "ip.dst",
@@ -19,28 +22,34 @@ def init_capture():
         "-e", "ip.proto",
         "-e", "frame.len",
         "-e", "ip.ttl",
-        # TCP fields
+
+        # TCP
         "-e", "tcp.srcport",
         "-e", "tcp.dstport",
         "-e", "tcp.flags",
         "-e", "tcp.seq",
         "-e", "tcp.ack",
         "-e", "tcp.window_size",
-        # UDP fields
+
+        # UDP
         "-e", "udp.srcport",
         "-e", "udp.dstport",
         "-e", "udp.length",
-        # DNS fields
+
+        # DNS
         "-e", "dns.qry.name",
         "-e", "dns.qry.type",
         "-e", "dns.a",
         "-e", "dns.flags.rcode",
-        # TLS fields
+
+        # TLS
         "-e", "tls.handshake.extensions_server_name",
-        "-e", "tls.handshake.version",
+        "-e", "tls.record.version",
         "-e", "tls.handshake.ciphersuite",
-        "-e", "tls.handshake.type"
+        "-e", "tls.handshake.type",
     ]
+
+
     try:
         process = subprocess.Popen(
             cmd,

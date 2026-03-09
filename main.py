@@ -31,6 +31,8 @@ def read_line(process):
 def main():
     print("[INFO] Starting main...", flush=True)
 
+    last_flush = time.time()
+    FLUSH_INTERVAL = 15.0
     process = None
     db = None
 
@@ -60,6 +62,11 @@ def main():
     line_count = 0
 
     try:
+        packet_batch = []
+        tcp_batch = []
+        udp_batch = []
+        dns_batch = []
+        tls_batch = []
         for line in read_line(process):
 
             line = line.strip()
@@ -67,50 +74,75 @@ def main():
                 continue
 
             line_count += 1
-            print(f"[DEBUG] Raw line {line_count}: {line}", flush=True)
 
             # Parse Here
             parsed = parse_packet(line)
             if not parsed:
                 continue
 
-
-            # Insert main packet into DB
-            try:
-                packet_id = db.insert_packet(parsed["base"])
-                if not packet_id:
-                    continue
-            except Exception as e:
-                print(f"[WARN] Failed to insert packet: {e}", flush=True)
-                continue
-
-
+            packet_batch.append(parsed["base"])
+            idx = len(packet_batch) - 1 
 
             # Classify here
             protocol = parsed["protocol"]
             proto_fields = parsed["proto_fields"]
 
 
-
             # Insert here
             try:
                 if protocol == "TCP":
-                    db.insert_tcp(packet_id, proto_fields)
+                    tcp_batch.append((idx, proto_fields))
                 elif protocol == "UDP":
-                    db.insert_udp(packet_id, proto_fields)
+                    udp_batch.append((idx, proto_fields))
                 elif protocol == "DNS":
-                    db.insert_dns(packet_id, proto_fields)
+                    dns_batch.append((idx, proto_fields))
                 elif protocol == "TLS":
-                    db.insert_tls(packet_id, proto_fields)
+                    tls_batch.append((idx, proto_fields))
             except Exception as e:
-                print(f"[WARN] Failed to insert {protocol} data: {e}", flush=True)
+                print(f"[WARN] Failed to append {protocol} data: {e}", flush=True)
 
 
 
             # Progress here
+            should_flush = False
             if line_count % 100 == 0:
+                should_flush = True
+
+            if time.time() - last_flush >= FLUSH_INTERVAL:
+                should_flush = True
+            if should_flush:
+                print(f"[DEBUG] Raw line {line_count}: {line}", flush=True)
                 print(f"[INFO] Processed {line_count} packets", flush=True)
 
+                try:
+                    packet_ids = db.insert_packet_batch(packet_batch)
+
+                    if tcp_batch:
+                        db.insert_tcp_batch(packet_ids, tcp_batch)
+                    
+                    if udp_batch:
+                        db.insert_udp_batch(packet_ids, udp_batch)
+
+                    if dns_batch:
+                        db.insert_dns_batch(packet_ids, dns_batch)
+                        
+                    if tls_batch:
+                        db.insert_tls_batch(packet_ids, tls_batch)
+                    
+                    packet_batch.clear()
+                    tcp_batch.clear()
+                    udp_batch.clear()
+                    dns_batch.clear()
+                    tls_batch.clear()
+
+                    last_flush = time.time()
+
+                    print(f"[INFO] Inserted batch of 100 packets", flush=True)
+                    
+                except Exception as e:
+                    print(f"[WARN] Batch insert failed: {e}", flush=True)
+
+    #Final Block Here
     except KeyboardInterrupt:
         print("\n[INFO] Capture stopped by user.", flush=True)
 
@@ -125,6 +157,23 @@ def main():
                 print("[INFO] TShark subprocess terminated.", flush=True)
             except Exception as e:
                 print(f"[WARN] Failed to terminate TShark: {e}", flush=True)
+
+
+        # Final flush
+        if packet_batch:
+            packet_ids = db.insert_packet_batch(packet_batch)
+
+            if tcp_batch:
+                db.insert_tcp_batch(packet_ids, tcp_batch)
+
+            if udp_batch:
+                db.insert_udp_batch(packet_ids, udp_batch)
+
+            if dns_batch:
+                db.insert_dns_batch(packet_ids, dns_batch)
+
+            if tls_batch:
+                db.insert_tls_batch(packet_ids, tls_batch)
 
         #DB Close Here
         if db:
