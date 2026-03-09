@@ -86,13 +86,13 @@ def parse_packet(line):
 
         elif proto == "DNS":
             raw = values[16:20]
-            raw += [""] * (4 - len(raw))  # pad to 4 fields
+            raw += [""] * (4 - len(raw))
             proto_fields = dict(zip(DNS_DB_FIELDS, raw))
             proto_fields["rcode"] = safe_int(proto_fields["rcode"])
 
         elif proto == "TLS":
             raw = values[20:24]
-            raw += [""] * (4 - len(raw))  # pad to 4 fields
+            raw += [""] * (4 - len(raw))
             proto_fields = dict(zip(TLS_DB_FIELDS, raw))
 
         else:

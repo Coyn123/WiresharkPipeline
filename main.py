@@ -33,6 +33,7 @@ def main():
 
     last_flush = time.time()
     FLUSH_INTERVAL = 15.0
+    MAX_BATCH = 1000
     process = None
     db = None
 
@@ -63,10 +64,14 @@ def main():
 
     try:
         packet_batch = []
-        tcp_batch = []
-        udp_batch = []
-        dns_batch = []
-        tls_batch = []
+
+        proto_batches = {
+            "TCP": [],
+            "UDP": [],
+            "DNS": [],
+            "TLS": []
+        }
+
         for line in read_line(process):
 
             line = line.strip()
@@ -80,36 +85,27 @@ def main():
             if not parsed:
                 continue
 
-            packet_batch.append(parsed["base"])
+            packet_batch.append(parsed.get("base"))
             idx = len(packet_batch) - 1 
 
-            # Classify here
-            protocol = parsed["protocol"]
-            proto_fields = parsed["proto_fields"]
+            # Define here
+            protocol = parsed.get("protocol")
+            proto_fields = parsed.get("proto_fields")
 
-
+            ## New file needed -> build_batch.py
             # Insert here
             try:
-                if protocol == "TCP":
-                    tcp_batch.append((idx, proto_fields))
-                elif protocol == "UDP":
-                    udp_batch.append((idx, proto_fields))
-                elif protocol == "DNS":
-                    dns_batch.append((idx, proto_fields))
-                elif protocol == "TLS":
-                    tls_batch.append((idx, proto_fields))
+                if protocol in proto_batches:
+                    proto_batches[protocol].append((idx, proto_fields))
             except Exception as e:
                 print(f"[WARN] Failed to append {protocol} data: {e}", flush=True)
 
-
-
             # Progress here
             should_flush = False
-            if line_count % 100 == 0:
+
+            if time.time() - last_flush >= FLUSH_INTERVAL or len(packet_batch) >= MAX_BATCH:
                 should_flush = True
 
-            if time.time() - last_flush >= FLUSH_INTERVAL:
-                should_flush = True
             if should_flush:
                 print(f"[DEBUG] Raw line {line_count}: {line}", flush=True)
                 print(f"[INFO] Processed {line_count} packets", flush=True)
@@ -117,32 +113,30 @@ def main():
                 try:
                     packet_ids = db.insert_packet_batch(packet_batch)
 
-                    if tcp_batch:
-                        db.insert_tcp_batch(packet_ids, tcp_batch)
+                    if proto_batches["TCP"]:
+                        db.insert_tcp_batch(packet_ids, proto_batches["TCP"])
                     
-                    if udp_batch:
-                        db.insert_udp_batch(packet_ids, udp_batch)
+                    if proto_batches["UDP"]:
+                        db.insert_udp_batch(packet_ids, proto_batches["UDP"])
 
-                    if dns_batch:
-                        db.insert_dns_batch(packet_ids, dns_batch)
+                    if proto_batches["DNS"]:
+                        db.insert_dns_batch(packet_ids, proto_batches["DNS"])
                         
-                    if tls_batch:
-                        db.insert_tls_batch(packet_ids, tls_batch)
+                    if proto_batches["TLS"]:
+                        db.insert_tls_batch(packet_ids, proto_batches["TLS"])
                     
                     packet_batch.clear()
-                    tcp_batch.clear()
-                    udp_batch.clear()
-                    dns_batch.clear()
-                    tls_batch.clear()
+
+                    for batch in proto_batches.values():
+                        batch.clear()
 
                     last_flush = time.time()
 
-                    print(f"[INFO] Inserted batch of 100 packets", flush=True)
+                    print(f"[INFO] Inserted batch of packets", flush=True)
                     
                 except Exception as e:
                     print(f"[WARN] Batch insert failed: {e}", flush=True)
 
-    #Final Block Here
     except KeyboardInterrupt:
         print("\n[INFO] Capture stopped by user.", flush=True)
 
@@ -158,24 +152,23 @@ def main():
             except Exception as e:
                 print(f"[WARN] Failed to terminate TShark: {e}", flush=True)
 
-
         # Final flush
         if packet_batch:
             packet_ids = db.insert_packet_batch(packet_batch)
 
-            if tcp_batch:
-                db.insert_tcp_batch(packet_ids, tcp_batch)
+            if proto_batches["TCP"]:
+                db.insert_tcp_batch(packet_ids, proto_batches["TCP"])
 
-            if udp_batch:
-                db.insert_udp_batch(packet_ids, udp_batch)
+            if proto_batches["UDP"]:
+                db.insert_udp_batch(packet_ids, proto_batches["UDP"])
 
-            if dns_batch:
-                db.insert_dns_batch(packet_ids, dns_batch)
+            if proto_batches["DNS"]:
+                db.insert_dns_batch(packet_ids, proto_batches["DNS"])
 
-            if tls_batch:
-                db.insert_tls_batch(packet_ids, tls_batch)
+            if proto_batches["TLS"]:
+                db.insert_tls_batch(packet_ids, proto_batches["TLS"])
 
-        #DB Close Here
+        # DB Close Here
         if db:
             try:
                 db.close()
