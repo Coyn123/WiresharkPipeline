@@ -1,6 +1,7 @@
 from capture import init_capture
 from parser import parse_packet
 from classifier import classify
+from build_batch import insert_protocol_batches
 from db import PacketDB
 import time
 import sys
@@ -64,6 +65,7 @@ def main():
 
     try:
         packet_batch = []
+        packet_light_batch = []
 
         proto_batches = {
             "TCP": [],
@@ -85,20 +87,24 @@ def main():
             if not parsed:
                 continue
 
-            packet_batch.append(parsed.get("base"))
-            idx = len(packet_batch) - 1 
-
             # Define here
             protocol = parsed.get("protocol")
             proto_fields = parsed.get("proto_fields")
 
-            ## New file needed -> build_batch.py
-            # Insert here
-            try:
-                if protocol in proto_batches:
+            packet_batch.append(parsed.get("base"))
+            idx = len(packet_batch) - 1 
+
+            if protocol in proto_batches:
+                light_packet = {
+                    "timestamp": parsed["base"]["timestamp"],
+                    "src_ip": parsed["base"]["src_ip"],
+                    "dst_ip": parsed["base"]["dst_ip"],
+                }
+                packet_light_batch.append(light_packet)
+                try:
                     proto_batches[protocol].append((idx, proto_fields))
-            except Exception as e:
-                print(f"[WARN] Failed to append {protocol} data: {e}", flush=True)
+                except Exception as e:
+                    print(f"[WARN] Failed to append {protocol} data: {e}", flush=True)
 
             # Progress here
             should_flush = False
@@ -112,24 +118,11 @@ def main():
 
                 try:
                     packet_ids = db.insert_packet_batch(packet_batch)
+                    insert_protocol_batches(db, packet_ids, proto_batches)
 
-                    if proto_batches["TCP"]:
-                        db.insert_tcp_batch(packet_ids, proto_batches["TCP"])
-                    
-                    if proto_batches["UDP"]:
-                        db.insert_udp_batch(packet_ids, proto_batches["UDP"])
-
-                    if proto_batches["DNS"]:
-                        db.insert_dns_batch(packet_ids, proto_batches["DNS"])
-                        
-                    if proto_batches["TLS"]:
-                        db.insert_tls_batch(packet_ids, proto_batches["TLS"])
-                    
                     packet_batch.clear()
-
                     for batch in proto_batches.values():
                         batch.clear()
-
                     last_flush = time.time()
 
                     print(f"[INFO] Inserted batch of packets", flush=True)
@@ -155,18 +148,15 @@ def main():
         # Final flush
         if packet_batch:
             packet_ids = db.insert_packet_batch(packet_batch)
+            insert_protocol_batches(db, packet_ids, proto_batches)
+            packet_batch.clear()
 
-            if proto_batches["TCP"]:
-                db.insert_tcp_batch(packet_ids, proto_batches["TCP"])
+        if packet_light_batch:
+            db.insert_light_batch(packet_light_batch)
+            packet_light_batch.clear()
 
-            if proto_batches["UDP"]:
-                db.insert_udp_batch(packet_ids, proto_batches["UDP"])
-
-            if proto_batches["DNS"]:
-                db.insert_dns_batch(packet_ids, proto_batches["DNS"])
-
-            if proto_batches["TLS"]:
-                db.insert_tls_batch(packet_ids, proto_batches["TLS"])
+        for batch in proto_batches.values():
+            batch.clear()
 
         # DB Close Here
         if db:
