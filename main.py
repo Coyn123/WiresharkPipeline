@@ -17,7 +17,7 @@ class JavaParser:
 
     def drain_stderr(self):
         for line in self.proc.stderr:
-            print(f"  [Java] {line}", end="", flush=True)
+            print(f"  {line}", end="", flush=True)
 
     def send_line(self, raw_json: str):
         self.proc.stdin.write(raw_json.replace("\n", " ") + "\n")
