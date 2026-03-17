@@ -1,171 +1,147 @@
 from capture import init_capture
-from parser import parse_packet
-from classifier import classify
-from build_batch import insert_protocol_batches
-from db import PacketDB
 import time
-import sys
-
-def read_line(process):
-    buffer = ""
-
-    #Line-by-line reader
-    while True:
-        c = process.stdout.read(1)
-
-        if c == "" and process.poll() is not None:
-            if buffer:
-                yield buffer
-            return
-
-        if not c:
-            time.sleep(0.01)
-            continue
-
-        if c == "\n":
-            yield buffer
-            buffer = ""
-        else:
-            buffer += c
+import json
+import subprocess
+import threading
 
 
-def main():
-    print("[INFO] Starting main...", flush=True)
+class JavaParser:
+    def __init__(self, jar_path):
+        self.seq  = 0
+        self.proc = subprocess.Popen(
+            ["java", "-jar", jar_path],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, text=True, bufsize=1,
+        )
+        threading.Thread(target=self.drain_stderr, daemon=True).start()
 
-    last_flush = time.time()
+    def drain_stderr(self):
+        for line in self.proc.stderr:
+            print(f"  {line}", end="", flush=True)
+
+    def send_line(self, raw_json: str):
+        self.proc.stdin.write(raw_json.replace("\n", " ") + "\n")
+        self.proc.stdin.flush()
+
+    def flush_batch(self, seq) -> dict:
+        if self.proc.poll() is not None:
+            return {"status": "error", "count": 0}
+        self.proc.stdin.write(json.dumps({"cmd": "flush", "seq": seq}) + "\n")
+        self.proc.stdin.flush()
+        resp = self.proc.stdout.readline()
+        return json.loads(resp) if resp else {"status": "error", "count": 0}
+
+    def close(self):
+        self.proc.stdin.close()
+        self.proc.wait()
+
+
+class Pipeline:
+
+    JAR_PATH       = r"target\wireshark-parser-1.0-SNAPSHOT.jar"
     FLUSH_INTERVAL = 15.0
-    MAX_BATCH = 1000
-    process = None
-    db = None
+    MAX_BATCH      = 1000
 
-    # Init TShark
-    try:
+    def __init__(self):
+        self.process    = None
+        self.java       = None
+        self.seq        = 0
+        self.line_count = 0
+        self.last_flush = time.time()
+
+    # Startup
+
+    def start(self):
+        print("[INFO] Starting pipeline...", flush=True)
+        self.init_tshark()
+        self.init_java()
+
+    def init_tshark(self):
         print("[INFO] Initializing TShark capture...", flush=True)
-        process = init_capture()
-        if not process or not process.stdout:
+        self.process = init_capture()
+        if not self.process or not self.process.stdout:
             raise RuntimeError("TShark process failed to start or stdout unavailable")
+        threading.Thread(target=self.drain_tshark_stderr, daemon=True).start()
         print("[INFO] TShark process started.", flush=True)
-    except Exception as e:
-        print(f"[ERROR] Initialization failed: {e}", flush=True)
-        return
 
-    # Init DB
-    try:
-        db = PacketDB()
-        print("[INFO] Connected to database.", flush=True)
-    except Exception as e:
-        print(f"[ERROR] DB connection failed: {e}", flush=True)
-        if process:
-            process.terminate()
-        return
+    def drain_tshark_stderr(self):
+        for line in self.process.stderr:
+            print(f"  [tshark] {line}", end="", flush=True)
 
-    print("[INFO] Reading live packets...", flush=True)
+    def init_java(self):
+        print("[INFO] Initializing Java parser...", flush=True)
+        self.java = JavaParser(self.JAR_PATH)
+        print("[INFO] Java parser started.", flush=True)
 
-    line_count = 0
+    # Packet stream
 
-    try:
-        packet_batch = []
-        packet_light_batch = []
-
-        proto_batches = {
-            "TCP": [],
-            "UDP": [],
-            "DNS": [],
-            "TLS": []
-        }
-
-        for line in read_line(process):
-
+    def read_packets(self):
+        for line in self.process.stdout:
             line = line.strip()
-            if not line:
+            if not line or line.startswith('{"index"}'):
                 continue
+            #print(f"[DEBUG] Raw packet:\n{line}\n", flush=True)
+            yield line
 
-            line_count += 1
+    # Flush
 
-            # Parse Here
-            parsed = parse_packet(line)
-            if not parsed:
-                continue
+    def should_flush(self):
+        return (
+            time.time() - self.last_flush >= self.FLUSH_INTERVAL
+            or self.line_count % self.MAX_BATCH == 0
+        )
 
-            # Define here
-            protocol = parsed.get("protocol")
-            proto_fields = parsed.get("proto_fields")
+    def flush(self):
+        self.seq += 1
+        result = self.java.flush_batch(self.seq)
+        self.last_flush = time.time()
+        print(f"[INFO] Java batch result: {result}", flush=True)
 
-            packet_batch.append(parsed.get("base"))
-            idx = len(packet_batch) - 1 
+    # Main loop
 
-            if protocol in proto_batches:
-                light_packet = {
-                    "timestamp": parsed["base"]["timestamp"],
-                    "src_ip": parsed["base"]["src_ip"],
-                    "dst_ip": parsed["base"]["dst_ip"],
-                }
-                packet_light_batch.append(light_packet)
-                try:
-                    proto_batches[protocol].append((idx, proto_fields))
-                except Exception as e:
-                    print(f"[WARN] Failed to append {protocol} data: {e}", flush=True)
+    def run(self):
+        print("[INFO] Reading live packets...", flush=True)
+        try:
+            for raw in self.read_packets():
+                if not raw:
+                    continue
 
-            # Progress here
-            should_flush = False
+                self.line_count += 1
+                self.java.send_line(raw)
 
-            if time.time() - last_flush >= FLUSH_INTERVAL or len(packet_batch) >= MAX_BATCH:
-                should_flush = True
+                if self.should_flush():
+                    self.flush()
 
-            if should_flush:
-                print(f"[DEBUG] Raw line {line_count}: {line}", flush=True)
-                print(f"[INFO] Processed {line_count} packets", flush=True)
+        except KeyboardInterrupt:
+            print("\n[INFO] Capture stopped by user.", flush=True)
+        except Exception as e:
+            print(f"[ERROR] Capture failed: {e}", flush=True)
 
-                try:
-                    packet_ids = db.insert_packet_batch(packet_batch)
-                    insert_protocol_batches(db, packet_ids, proto_batches)
-
-                    packet_batch.clear()
-                    for batch in proto_batches.values():
-                        batch.clear()
-                    last_flush = time.time()
-
-                    print(f"[INFO] Inserted batch of packets", flush=True)
-                    
-                except Exception as e:
-                    print(f"[WARN] Batch insert failed: {e}", flush=True)
-
-    except KeyboardInterrupt:
-        print("\n[INFO] Capture stopped by user.", flush=True)
-
-    except Exception as e:
-        print(f"[ERROR] Capture failed: {e}", flush=True)
-
-    finally:
+    # Shutdown
+    def stop(self):
         print("[INFO] Cleaning up...", flush=True)
-        if process:
+
+        # Final flush
+        if self.java and self.line_count > 0:
+            self.flush()
+
+        if self.java:
+            self.java.close()
+            print("[INFO] Java process terminated.", flush=True)
+
+        if self.process:
             try:
-                process.terminate()
+                self.process.terminate()
                 print("[INFO] TShark subprocess terminated.", flush=True)
             except Exception as e:
                 print(f"[WARN] Failed to terminate TShark: {e}", flush=True)
 
-        # Final flush
-        if packet_batch:
-            packet_ids = db.insert_packet_batch(packet_batch)
-            insert_protocol_batches(db, packet_ids, proto_batches)
-            packet_batch.clear()
 
-        if packet_light_batch:
-            db.insert_light_batch(packet_light_batch)
-            packet_light_batch.clear()
-
-        for batch in proto_batches.values():
-            batch.clear()
-
-        # DB Close Here
-        if db:
-            try:
-                db.close()
-                print("[INFO] Database connection closed.", flush=True)
-            except Exception as e:
-                print(f"[WARN] Failed to close DB: {e}", flush=True)
-
-
+# Spawn
 if __name__ == "__main__":
-    main()
+    pipeline = Pipeline()
+    try:
+        pipeline.start()
+        pipeline.run()
+    finally:
+        pipeline.stop()
