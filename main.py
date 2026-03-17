@@ -38,7 +38,7 @@ class JavaParser:
 
 class Pipeline:
 
-    JAR_PATH       = r"target\wireshark-parser-1.0-SNAPSHOT.jar"
+    JAR_PATH       = r"target/wireshark-parser-1.0-SNAPSHOT.jar"
     FLUSH_INTERVAL = 15.0
     MAX_BATCH      = 1000
 

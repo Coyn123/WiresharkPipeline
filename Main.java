@@ -23,8 +23,8 @@ public class Main {
             try {
                 JsonNode envelope = mapper.readTree(line);
 
-                int    seq   = envelope.get("seq").asInt();
-                int    count = envelope.get("batch").size();  // just count for now
+                int seq   = envelope.get("seq").asInt();
+                int count = envelope.get("batch").size();  // just count for now
 
                 // Ack back to Python
                 String response = mapper.writeValueAsString(Map.of(
