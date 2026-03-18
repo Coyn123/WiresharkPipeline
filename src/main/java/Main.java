@@ -2,8 +2,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.*;
-import java.util.Iterator;
-//import java.util.Map;
 
 public class Main {
 
@@ -13,6 +11,7 @@ public class Main {
     public static void main(String[] args) throws Exception {
 
         BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
+        PacketProcessor pp = new PacketProcessor();
 
         System.err.println("[JAVA] Ready");
 
@@ -20,20 +19,17 @@ public class Main {
 
         while((line = stdin.readLine()) != null) {
 
-            JsonNode node = mapper.readTree(line);
-            JsonNode layers = node.path("layers");
+            line = line.trim();
+            if(line.isEmpty()) continue;
 
-            if (layers.isMissingNode()) {
+            JsonNode batch = mapper.readTree(line);
+            JsonNode packets = batch.get("packets");
+
+            if (packets.isMissingNode()) {
                 System.err.println("[JAVA] no layers, skipping");
                 continue;
             }
-
-            Iterator<String> fieldNames = layers.fieldNames();
-            for (JsonNode item : layers) {
-                String key = fieldNames.next();
-                System.err.println("[J DEBUG] KEY: " + key);
-                System.err.println("[J DEBUG] ITEM: " + item);
-            }
+            pp.processLine(packets);
 
         }
         System.err.println("[JAVA] shutting down");
