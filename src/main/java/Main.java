@@ -2,7 +2,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.io.*;
-import java.util.Map;
+import java.util.Iterator;
+//import java.util.Map;
 
 public class Main {
 
@@ -27,14 +28,13 @@ public class Main {
                 continue;
             }
 
-            JsonNode srcIp = layers.path("ip_src");
-
-            if (!srcIp.isMissingNode()) {
-                String ip = srcIp.get(0).asText();
-                System.err.println("[JAVA] ip: " + ip);
-            } else {
-                System.err.println("[JAVA] no ip");
+            Iterator<String> fieldNames = layers.fieldNames();
+            for (JsonNode item : layers) {
+                String key = fieldNames.next();
+                System.err.println("[J DEBUG] KEY: " + key);
+                System.err.println("[J DEBUG] ITEM: " + item);
             }
+
         }
         System.err.println("[JAVA] shutting down");
     }
