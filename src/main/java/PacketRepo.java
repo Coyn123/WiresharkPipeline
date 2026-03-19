@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.*;
+import java.util.Optional;
 
 public class PacketRepo {
     private static final String URL  = "jdbc:mysql://localhost:3306/nsm";
@@ -26,10 +27,11 @@ public class PacketRepo {
 
     public void create_insert_job(JsonNode parsedBatch) {
         try {
-            String structuredSql = "INSERT INTO structured (packet) VALUES (?)";
+            String structuredSql = "INSERT INTO structured (packet, es_indexed) VALUES (?, ?)";
             try (PreparedStatement stmt = connection.prepareStatement(structuredSql)) {
                 for (JsonNode packet : parsedBatch) {
                     stmt.setString(1, packet.toString());
+                    stmt.setBoolean(2, false);
                     stmt.addBatch();
                 }
                 stmt.executeBatch();
@@ -73,7 +75,7 @@ public class PacketRepo {
     }
 
     private void insertLayer(JsonNode packet, long baseId) throws SQLException {
-        String protocol = packet.path("protocol").asText("UNKNOWN");
+        String protocol = Optional.ofNullable(text(packet, "protocol")).orElse("UNKNOWN");
         JsonNode layers = packet.path("layers");
 
         switch (protocol) {
