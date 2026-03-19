@@ -1,4 +1,5 @@
 from capture import init_capture
+from services import start_services
 import time
 import json
 import subprocess
@@ -60,6 +61,10 @@ class Pipeline:
         print("[INFO] Starting pipeline...", flush=True)
         self.init_tshark()
         self.init_java()
+        if not start_services():
+            print("[ERROR] Failed to start required services, exiting")
+            exit(1)
+
 
     def init_tshark(self):
         print("[INFO] Initializing TShark capture...", flush=True)
@@ -83,19 +88,30 @@ class Pipeline:
     # Packet stream
 
     def read_packets(self):
-        for line in self.process.stdout:
-            line = line.strip()
-            if not line or line.startswith('{"index":'):
-                continue
-            # print(f"[DEBUG] Raw packet:\n{line}\n", flush=True)
-            yield line
+        import select
+        while True:
+            ready = select.select([self.process.stdout], [], [], 5.0)[0]
+            if ready:
+                line = self.process.stdout.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line or line.startswith('{"index":'):
+                    continue
+                yield line
+            else:
+                # timeout — flush whatever we have
+                if len(self.java.batch) > 0:
+                    self.flush()
 
     # Flush
 
     def should_flush(self):
+        if len(self.java.batch) == 0:
+            return False  # never flush empty batch
         return (
             time.time() - self.last_flush >= self.FLUSH_INTERVAL
-            or self.line_count % self.MAX_BATCH == 0
+            or len(self.java.batch) >= self.MAX_BATCH
         )
 
     def flush(self):

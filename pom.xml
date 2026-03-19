@@ -30,6 +30,12 @@
             <version>8.3.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.elasticsearch.client</groupId>
+            <artifactId>elasticsearch-rest-high-level-client</artifactId>
+            <version>7.17.29</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>

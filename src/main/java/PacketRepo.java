@@ -1,6 +1,5 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.*;
-import java.util.Optional;
 
 public class PacketRepo {
     private static final String URL  = "jdbc:mysql://localhost:3306/nsm";
@@ -13,9 +12,9 @@ public class PacketRepo {
         try {
             this.connection = DriverManager.getConnection(URL, USER, PASS);
             this.connection.setAutoCommit(false);
-            System.err.println("[J DEBUG] MariaDB connected successfully");
+            System.err.println("[J DEBUG] MySQL connected successfully");
         } catch (SQLException e) {
-            System.err.println("[J ERROR] MariaDB connection failed: " + e.getMessage());
+            System.err.println("[J ERROR] MySQL connection failed: " + e.getMessage());
         }
     }
 
@@ -25,7 +24,7 @@ public class PacketRepo {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-    public void create_insert_job(JsonNode parsedBatch) {
+    public Boolean create_insert_job(JsonNode parsedBatch) {
         try {
             String structuredSql = "INSERT INTO structured (packet, es_indexed) VALUES (?, ?)";
             try (PreparedStatement stmt = connection.prepareStatement(structuredSql)) {
@@ -43,10 +42,34 @@ public class PacketRepo {
             }
 
             connection.commit();
-            System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets");
+            connection.setAutoCommit(true);
+            connection.setAutoCommit(false);
+            System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets into MySQL");
+            return Boolean.TRUE;
 
         } catch (SQLException e) {
             System.err.println("[J ERROR] Insert failed, rolling back: " + e.getMessage());
+            try { connection.rollback(); } catch (SQLException ex) {
+                System.err.println("[J ERROR] Rollback failed: " + ex.getMessage());
+                return Boolean.FALSE;
+            }
+        }
+        return Boolean.FALSE;
+    }
+    public void mark_es_indexed(JsonNode parsedBatch) {
+        String sql = "UPDATE structured SET es_indexed = true WHERE packet = ?";
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            for (JsonNode packet : parsedBatch) {
+                stmt.setString(1, packet.toString());
+                stmt.addBatch();
+            }
+            stmt.executeBatch();
+            connection.commit();
+            connection.setAutoCommit(true);
+            connection.setAutoCommit(false);
+            System.err.println("[J DEBUG] MySQL flagged " + parsedBatch.size() + " packets as es_indexed");
+        } catch (SQLException e) {
+            System.err.println("[J ERROR] Failed to mark es_indexed: " + e.getMessage());
             try { connection.rollback(); } catch (SQLException ex) {
                 System.err.println("[J ERROR] Rollback failed: " + ex.getMessage());
             }
@@ -75,7 +98,7 @@ public class PacketRepo {
     }
 
     private void insertLayer(JsonNode packet, long baseId) throws SQLException {
-        String protocol = Optional.ofNullable(text(packet, "protocol")).orElse("UNKNOWN");
+        String protocol = text(packet, "protocol") != null ? text(packet, "protocol") : "UNKNOWN";
         JsonNode layers = packet.path("layers");
 
         switch (protocol) {
@@ -112,7 +135,7 @@ public class PacketRepo {
     }
 
     private void insertDns(JsonNode l, long baseId) throws SQLException {
-        String sql = "INSERT INTO dns (base_packet_id, query_name, query_type, resolved_a, rcode) VALUES (?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO dns (base_packet_id, query_name, query_type, resolved_ip, rcode) VALUES (?, ?, ?, ?, ?)";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setLong(1,   baseId);
             stmt.setString(2, text(l, "queryName"));

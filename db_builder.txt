@@ -5,27 +5,25 @@
 CREATE DATABASE IF NOT EXISTS nsm;
 USE nsm;
 
--- Structured packet (full JSON blob)
-CREATE TABLE IF NOT EXISTS structured (
-    id      INT AUTO_INCREMENT PRIMARY KEY,
-    packet  JSON NOT NULL
+CREATE TABLE structured (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    packet     JSON NOT NULL,
+    es_indexed BOOLEAN DEFAULT false
 );
 
--- Base packet (always present)
-CREATE TABLE IF NOT EXISTS base (
-    id           INT AUTO_INCREMENT PRIMARY KEY,
-    timestamp    DATETIME,
-    ip_src       VARCHAR(45),
-    ip_dst       VARCHAR(45),
-    ip_version   VARCHAR(5),
-    ip_proto     VARCHAR(5),
-    frame_len    VARCHAR(10),
-    ip_ttl       VARCHAR(5),
-    protocol     VARCHAR(10)
+CREATE TABLE base (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp  DATETIME,
+    ip_src     VARCHAR(45),
+    ip_dst     VARCHAR(45),
+    ip_version VARCHAR(5),
+    ip_proto   VARCHAR(5),
+    frame_len  VARCHAR(10),
+    ip_ttl     VARCHAR(5),
+    protocol   VARCHAR(10)
 );
 
--- TCP
-CREATE TABLE IF NOT EXISTS tcp (
+CREATE TABLE tcp (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     base_packet_id INT NOT NULL,
     src_port       VARCHAR(10),
@@ -37,8 +35,7 @@ CREATE TABLE IF NOT EXISTS tcp (
     FOREIGN KEY (base_packet_id) REFERENCES base(id)
 );
 
--- UDP
-CREATE TABLE IF NOT EXISTS udp (
+CREATE TABLE udp (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     base_packet_id INT NOT NULL,
     src_port       VARCHAR(10),
@@ -47,8 +44,7 @@ CREATE TABLE IF NOT EXISTS udp (
     FOREIGN KEY (base_packet_id) REFERENCES base(id)
 );
 
--- DNS
-CREATE TABLE IF NOT EXISTS dns (
+CREATE TABLE dns (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     base_packet_id INT NOT NULL,
     query_name     VARCHAR(255),
@@ -58,8 +54,7 @@ CREATE TABLE IF NOT EXISTS dns (
     FOREIGN KEY (base_packet_id) REFERENCES base(id)
 );
 
--- TLS
-CREATE TABLE IF NOT EXISTS tls (
+CREATE TABLE tls (
     id             INT AUTO_INCREMENT PRIMARY KEY,
     base_packet_id INT NOT NULL,
     sni            VARCHAR(255),

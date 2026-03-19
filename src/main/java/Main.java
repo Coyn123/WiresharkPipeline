@@ -5,37 +5,42 @@ import java.io.*;
 
 public class Main {
 
-    // JSON Parser
     private static final ObjectMapper mapper = new ObjectMapper();
 
     public static void main(String[] args) throws Exception {
 
         BufferedReader stdin = new BufferedReader(new InputStreamReader(System.in));
+        PrintWriter stdout = new PrintWriter(new OutputStreamWriter(System.out), true);
         PacketProcessor pp = new PacketProcessor();
 
         System.err.println("[JAVA] Ready");
 
         String line;
 
-        while((line = stdin.readLine()) != null) {
-
+        while ((line = stdin.readLine()) != null) {
             line = line.trim();
-            if(line.isEmpty()) continue;
+            if (line.isEmpty()) continue;
 
-            JsonNode batch = mapper.readTree(line);
-            JsonNode packets = batch.get("packets");
-
-            if (packets.isMissingNode()) {
-                System.err.println("[JAVA] no layers, skipping");
-                continue;
-            }
             try {
-                pp.process_batch(packets);
-            } catch (Exception e){
-                System.err.println("[ERROR] PROCESSING BATCH FAILURE: " + e.getMessage());
-            }
+                JsonNode batch   = mapper.readTree(line);
+                JsonNode packets = batch.path("packets");
 
+                if (packets.isMissingNode() || packets.isEmpty()) {
+                    System.err.println("[JAVA] no packets, skipping");
+                    stdout.println("{\"status\": \"skipped\", \"count\": 0}");
+                    continue;
+                }
+
+                pp.process_batch(packets);
+
+                stdout.println("{\"status\": \"ok\", \"count\": " + packets.size() + "}");
+
+            } catch (Exception e) {
+                System.err.println("[ERROR] PROCESSING BATCH FAILURE: " + e.getMessage());
+                stdout.println("{\"status\": \"error\", \"count\": 0}");
+            }
         }
+
         System.err.println("[JAVA] shutting down");
     }
 }
