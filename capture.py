@@ -6,7 +6,9 @@ from datetime import datetime
 
 def init_capture():
     cmd = [
-        r"/Applications/Wireshark.app/Contents/MacOS/tshark",
+        # C:\Program Files\Wireshark
+        # /Applications/Wireshark.app/Contents/MacOS/tshark
+        r"C:\Program Files\Wireshark",
         "-n",
         "-i", "1",
         "-T", "ek",
