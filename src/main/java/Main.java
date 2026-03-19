@@ -29,7 +29,11 @@ public class Main {
                 System.err.println("[JAVA] no layers, skipping");
                 continue;
             }
-            pp.processLine(packets);
+            try {
+                pp.process_batch(packets);
+            } catch (Exception e){
+                System.err.println("[ERROR] PROCESSING BATCH FAILURE: " + e.getMessage());
+            }
 
         }
         System.err.println("[JAVA] shutting down");
