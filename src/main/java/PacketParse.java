@@ -15,10 +15,13 @@ public class PacketParse {
         ArrayNode parsedBatch = mapper.createArrayNode();
 
         for (JsonNode packet : batch) {
+
+            //One packet at a time, classify, parse
             PacketRecords.Protocol protocol = classifier.classify(packet);
             PacketRecords.BasePacket base = parse_base(packet);
             Object valuePacket = parse_value(packet, protocol);
 
+            //Convert back to Node for storage
             ObjectNode parsedPacket = mapper.createObjectNode();
             parsedPacket.put("protocol", protocol.name());
             parsedPacket.set("base", mapper.valueToTree(base));

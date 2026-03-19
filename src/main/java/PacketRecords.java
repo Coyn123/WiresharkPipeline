@@ -53,7 +53,7 @@ public class PacketRecords {
                 @JsonProperty("layers")    Layers layers
         ) {
             this(
-                    timestamp,
+                    formatTimestamp(timestamp),
                     get(layers.ipSrc()),
                     get(layers.ipDst()),
                     get(layers.ipVersion()),
@@ -63,6 +63,14 @@ public class PacketRecords {
             );
         }
 
+        //Format for DATETIME sql Type
+        private static String formatTimestamp(String raw) {
+            if (raw == null) return null;
+            long millis = Long.parseLong(raw);
+            return new java.sql.Timestamp(millis)
+                    .toLocalDateTime()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        }
         // null-safe helper — returns null instead of throwing if field is missing
         private static String get(java.util.List<String> list) {
             return (list != null && !list.isEmpty()) ? list.get(0) : null;
@@ -88,7 +96,7 @@ public class PacketRecords {
     public record DnsPacket(
             String queryName,
             String queryType,
-            String resolvedA,
+            String resolvedIp,
             String rcode
     ) {}
 
