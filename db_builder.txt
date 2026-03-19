@@ -1,0 +1,65 @@
+-- ============================================================
+-- NSM Database Schema
+-- ============================================================
+
+CREATE DATABASE IF NOT EXISTS nsm;
+USE nsm;
+
+CREATE TABLE structured (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    packet     JSON NOT NULL,
+    es_indexed BOOLEAN DEFAULT false
+);
+
+CREATE TABLE base (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    timestamp  DATETIME,
+    ip_src     VARCHAR(45),
+    ip_dst     VARCHAR(45),
+    ip_version VARCHAR(5),
+    ip_proto   VARCHAR(5),
+    frame_len  VARCHAR(10),
+    ip_ttl     VARCHAR(5),
+    protocol   VARCHAR(10)
+);
+
+CREATE TABLE tcp (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    base_packet_id INT NOT NULL,
+    src_port       VARCHAR(10),
+    dst_port       VARCHAR(10),
+    flags          VARCHAR(10),
+    seq            VARCHAR(20),
+    ack            VARCHAR(20),
+    window_size    VARCHAR(10),
+    FOREIGN KEY (base_packet_id) REFERENCES base(id)
+);
+
+CREATE TABLE udp (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    base_packet_id INT NOT NULL,
+    src_port       VARCHAR(10),
+    dst_port       VARCHAR(10),
+    length         VARCHAR(10),
+    FOREIGN KEY (base_packet_id) REFERENCES base(id)
+);
+
+CREATE TABLE dns (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    base_packet_id INT NOT NULL,
+    query_name     VARCHAR(255),
+    query_type     VARCHAR(10),
+    resolved_ip    VARCHAR(45),
+    rcode          VARCHAR(10),
+    FOREIGN KEY (base_packet_id) REFERENCES base(id)
+);
+
+CREATE TABLE tls (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    base_packet_id INT NOT NULL,
+    sni            VARCHAR(255),
+    record_version VARCHAR(20),
+    cipher_suite   VARCHAR(50),
+    handshake_type VARCHAR(10),
+    FOREIGN KEY (base_packet_id) REFERENCES base(id)
+);
