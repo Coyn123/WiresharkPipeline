@@ -107,13 +107,15 @@ public class PacketRecords {
             String handshakeType
     ) {
         public TlsPacket {
-            recordVersion = switch (recordVersion) {
-                case "0x0301" -> "TLS 1.0";
-                case "0x0302" -> "TLS 1.1";
-                case "0x0303" -> "TLS 1.2/1.3";
-                case "0x0304" -> "TLS 1.3";
-                default -> recordVersion != null ? "UNKNOWN (" + recordVersion + ")" : null;
-            };
+            if (recordVersion != null) {
+                recordVersion = switch (recordVersion) {
+                    case "0x0301" -> "TLS 1.0";
+                    case "0x0302" -> "TLS 1.1";
+                    case "0x0303" -> "TLS 1.2/1.3";
+                    case "0x0304" -> "TLS 1.3";
+                    default -> "UNKNOWN (" + recordVersion + ")";
+                };
+            }
         }
     }
 

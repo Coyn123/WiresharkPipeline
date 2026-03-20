@@ -8,7 +8,8 @@ public class PacketProcessor {
     public PacketProcessor() {
         this.parser = new PacketParse();
         this.repo = new PacketRepo();
-        this.index = new PacketIndex();
+        this.index = new PacketIndex(repo);
+        this.index.retryUnindexed();
     }
 
     public void process_batch(JsonNode batch) {

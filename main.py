@@ -59,11 +59,11 @@ class Pipeline:
 
     def start(self):
         print("[INFO] Starting pipeline...", flush=True)
-        self.init_tshark()
-        self.init_java()
         if not start_services():
             print("[ERROR] Failed to start required services, exiting")
             exit(1)
+        self.init_tshark()
+        self.init_java()
 
 
     def init_tshark(self):
