@@ -7,7 +7,7 @@ match OS:
     case "Windows":
         #BASE_DIR = os.path.expandvars(r"%APPDATA%\WiresharkPipeline")
         TSHARK_PATH = r"C:\Program Files\Wireshark\tshark.exe"
-        ES_BIN = r"C:\Program Files\Elastic\Elasticsearch\bin\elasticsearch.bat"
+        ES_BIN = r"C:\Program Files\Elastic\bin\elasticsearch.bat"
         MYSQL_BIN = r"C:\xampp\mysql\bin\mysqld.exe"
         MYSQL_HOST = "localhost"
         MYSQL_PORT = 3306
@@ -47,10 +47,28 @@ JAR_PATH = "target/wireshark-parser-1.0-SNAPSHOT.jar"
 
 
 
-import shutil
-import subprocess
+def get_active_interface():
+    import subprocess
+    try:
+        result = subprocess.run(
+            [TSHARK_PATH, "-D"],
+            capture_output=True, text=True
+        )
+        for line in result.stdout.splitlines():
+            lower = line.lower()
+            if any(k in lower for k in ["ethernet", "eth", "wi-fi", "wifi", "wireless", "wlan", "en0", "en1"]):
+                token = line.split(".")[0].strip()
+                print(f"[INFO] Auto-selected interface: {line.strip()}")
+                return token
+    except Exception as e:
+        print(f"[WARN] Could not detect interface: {e}")
+    print("[WARN] Falling back to interface 1")
+    return "1"
+
 
 def check_dependencies():
+    import shutil
+    import subprocess
     errors = []
 
     # Java

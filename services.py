@@ -6,13 +6,20 @@ from config import *
 
 def start_elasticsearch():
     print("[INFO] Starting Elasticsearch...")
-    subprocess.Popen(
-        [f"{ES_BIN}"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    if OS == "Windows":
+        subprocess.Popen(
+            ["cmd.exe", "/c", ES_BIN],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
+        subprocess.Popen(
+            [ES_BIN],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
     # wait for ES to be ready
-    for i in range(30):
+    for i in range(60):
         try:
             res = requests.get("http://localhost:9200")
             if res.status_code == 200:
@@ -26,11 +33,18 @@ def start_elasticsearch():
 
 def start_mysql():
     print("[INFO] Starting MySQL...")
-    subprocess.run(
-        [f"{MYSQL_BIN}", "start"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL
-    )
+    if OS == "Windows":
+        subprocess.Popen(
+            [MYSQL_BIN, "--console"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+    else:
+        subprocess.Popen(
+            [MYSQL_BIN],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
     # wait for MySQL to be ready
     for i in range(15):
         try:

@@ -1,15 +1,14 @@
+import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.http.HttpHost;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.sql.Connection;
@@ -17,18 +16,18 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 public class PacketIndex {
-    private final RestHighLevelClient client;
-    private final PacketRepo repo;          // fix 1: fields declared, assigned in constructor
+    private final RestClient client;
+    private final PacketRepo repo;
     private final Connection connection;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String INDEX = "structured";
 
-    public PacketIndex(PacketRepo repo) {   // fix 2: repo passed as parameter
-        this.repo = repo;                   // fix 3: assigned before use
+    public PacketIndex(PacketRepo repo) {
+        this.repo = repo;
         this.connection = repo.getConnection();
-        this.client = new RestHighLevelClient(
-                RestClient.builder(new HttpHost("localhost", 9200, "http"))
-        );
+        this.client = RestClient.builder(
+                new HttpHost("localhost", 9200, "http")
+        ).build();
         System.err.println("[J DEBUG] Elasticsearch client connected");
     }
     private String convertToISO8601(String rawTimestamp) {
@@ -36,41 +35,41 @@ public class PacketIndex {
             java.time.format.DateTimeFormatter inputFmt = java.time.format.DateTimeFormatter
                     .ofPattern("yyyy-MM-dd HH:mm:ss");
             java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(rawTimestamp, inputFmt);
-            return ldt.atOffset(java.time.ZoneOffset.UTC).toString(); // "2026-03-20T13:00:00Z"
+            return ldt.atOffset(java.time.ZoneOffset.UTC).toString();
         } catch (Exception e) {
             System.err.println("[J WARN] Could not parse timestamp: " + rawTimestamp);
             return rawTimestamp;
         }
     }
-
     public void retryUnindexed() {
-        String sql = "SELECT packet FROM structured WHERE es_indexed = false";
+        String sql = "SELECT id, packet FROM structured WHERE es_indexed = false";
         try (PreparedStatement stmt = connection.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
 
             ArrayNode missed = objectMapper.createArrayNode();
+            java.util.List<Integer> ids = new java.util.ArrayList<>();
+
             while (rs.next()) {
-                JsonNode packet = objectMapper.readTree(rs.getString("packet"));
-                missed.add(packet);
+                ids.add(rs.getInt("id"));
+                missed.add(objectMapper.readTree(rs.getString("packet")));
             }
 
             if (missed.isEmpty()) return;
 
             System.err.println("[J DEBUG] Retrying " + missed.size() + " un-indexed packets");
 
-            boolean esSuccess = index_batch(missed);  // fix 4: call self, not index.index_batch
+            boolean esSuccess = index_batch(missed);
             if (esSuccess) {
-                repo.mark_es_indexed(missed);
+                repo.mark_es_indexed(ids);
             }
 
         } catch (Exception e) {
             System.err.println("[J ERROR] retryUnindexed failed: " + e.getMessage());
         }
     }
-
     public boolean index_batch(JsonNode parsedBatch) {
         try {
-            BulkRequest bulkRequest = new BulkRequest();
+            StringBuilder bulkBody = new StringBuilder();
 
             for (JsonNode packet : parsedBatch) {
                 ObjectNode doc = (ObjectNode) packet.deepCopy();
@@ -80,16 +79,21 @@ public class PacketIndex {
                 } else {
                     doc.put("@timestamp", java.time.Instant.now().toString());
                 }
-
-                bulkRequest.add(new IndexRequest(INDEX)
-                        .source(doc.toString(), XContentType.JSON)
-                );
+                // bulk action line
+                bulkBody.append("{\"index\":{\"_index\":\"").append(INDEX).append("\"}}\n");
+                // document line
+                bulkBody.append(objectMapper.writeValueAsString(doc)).append("\n");
             }
 
-            BulkResponse response = client.bulk(bulkRequest, RequestOptions.DEFAULT);
+            Request request     = new Request("POST", "/_bulk");
+            request.setEntity(new StringEntity(bulkBody.toString(), ContentType.APPLICATION_JSON));
+            Response response   = client.performRequest(request);
 
-            if (response.hasFailures()) {
-                System.err.println("[J ERROR] Bulk index had failures: " + response.buildFailureMessage());
+            String responseBody = EntityUtils.toString(response.getEntity());
+            JsonNode responseJson = objectMapper.readTree(responseBody);
+
+            if (responseJson.path("errors").asBoolean(false)) {
+                System.err.println("[J ERROR] Bulk index had failures");
                 return false;
             }
 
@@ -101,7 +105,6 @@ public class PacketIndex {
             return false;
         }
     }
-
     public void close() {
         try {
             client.close();

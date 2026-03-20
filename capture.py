@@ -2,14 +2,14 @@ import sys
 import time
 import subprocess
 from datetime import datetime
-from config import TSHARK_PATH
-
+from config import get_active_interface, TSHARK_PATH
 
 def init_capture():
     cmd = [
         f"{TSHARK_PATH}",
         "-n",
-        "-i", "1",
+              #Config.py helper
+        "-i", get_active_interface(),
         "-T", "ek",
         "-l",
         "-E", "separator=,",
@@ -50,6 +50,7 @@ def init_capture():
         "-e", "tls.handshake.ciphersuite",
         "-e", "tls.handshake.type",
     ]
+
 
 
     try:

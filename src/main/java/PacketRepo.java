@@ -75,18 +75,16 @@ public class PacketRepo {
         }
     }
 
-    public Boolean mark_es_indexed(JsonNode parsedBatch) {
-        String sql = "UPDATE structured SET es_indexed = true WHERE packet = ?";
+    public Boolean mark_es_indexed(java.util.List<Integer> ids) {
+        String sql = "UPDATE structured SET es_indexed = true WHERE id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            for (JsonNode packet : parsedBatch) {
-                stmt.setString(1, packet.toString());
+            for (int id : ids) {
+                stmt.setInt(1, id);
                 stmt.addBatch();
             }
             stmt.executeBatch();
             connection.commit();
-            connection.setAutoCommit(true);
-            connection.setAutoCommit(false);
-            System.err.println("[J DEBUG] MySQL flagged " + parsedBatch.size() + " packets as es_indexed");
+            System.err.println("[J DEBUG] MySQL flagged " + ids.size() + " packets as es_indexed");
             return Boolean.TRUE;
         } catch (SQLException e) {
             System.err.println("[J ERROR] Failed to mark es_indexed: " + e.getMessage());

@@ -40,8 +40,20 @@ class JavaParser:
             return {"status": "error", "count": 0}
 
     def close(self):
-        self.proc.stdin.close()
-        self.proc.wait()
+        try:
+            if self.proc.stdin and not self.proc.stdin.closed:
+                self.proc.stdin.close()
+        except Exception as e:
+            print(f"[WARN] Could not close Java stdin: {e}", flush=True)
+
+        try:
+            self.proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            print("[WARN] Java process didn't exit cleanly, killing...", flush=True)
+            self.proc.kill()
+            self.proc.wait()
+        except Exception as e:
+            print(f"[WARN] Java wait failed: {e}", flush=True)
 
 
 class Pipeline:
@@ -85,23 +97,31 @@ class Pipeline:
         print("[INFO] Java parser started.", flush=True)
 
     # Packet stream
-
     def read_packets(self):
-        import select
+        import queue
+        q = queue.Queue()
+
+        def reader():
+            for line in self.process.stdout:
+                q.put(line)
+            q.put(None)
+
+        threading.Thread(target=reader, daemon=True).start()
+
         while True:
-            ready = select.select([self.process.stdout], [], [], 5.0)[0]
-            if ready:
-                line = self.process.stdout.readline()
-                if not line:
-                    break
-                line = line.strip()
-                if not line or line.startswith('{"index":'):
-                    continue
-                yield line
-            else:
-                # timeout — flush whatever we have
+            try:
+                line = q.get(timeout=5.0)
+            except queue.Empty:
+                # timeout
                 if len(self.java.batch) > 0:
                     self.flush()
+                continue
+            if line is None:
+                break
+            line = line.strip()
+            if not line or line.startswith('{"index":'):
+                continue
+            yield line
 
     # Flush
 
@@ -139,13 +159,14 @@ class Pipeline:
         except Exception as e:
             print(f"[ERROR] Capture failed: {e}", flush=True)
 
-    # Shutdown
     def stop(self):
         print("[INFO] Cleaning up...", flush=True)
 
-        # Final flush
         if self.java and self.line_count > 0:
-            self.flush()
+            try:
+                self.flush()
+            except Exception as e:
+                print(f"[WARN] Final flush failed: {e}", flush=True)
 
         if self.java:
             self.java.close()
@@ -154,10 +175,13 @@ class Pipeline:
         if self.process:
             try:
                 self.process.terminate()
+                self.process.wait(timeout=5)
                 print("[INFO] TShark subprocess terminated.", flush=True)
+            except subprocess.TimeoutExpired:
+                self.process.kill()
+                print("[WARN] TShark force killed.", flush=True)
             except Exception as e:
-                print(
-                    f"[WARN] Failed to terminate TShark: {e}", flush=True)
+                print(f"[WARN] Failed to terminate TShark: {e}", flush=True)
 
 
 # Spawn
