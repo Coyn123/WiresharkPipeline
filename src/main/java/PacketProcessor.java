@@ -1,5 +1,7 @@
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.List;
+
 public class PacketProcessor {
     private final PacketParse parser;
     private final PacketRepo repo;
@@ -21,8 +23,8 @@ public class PacketProcessor {
                 return;
             }
 
-            boolean dbSuccess = repo.create_insert_job(parsedBatch);
-            if (!dbSuccess) {
+            List<Integer> insertedIds = repo.create_insert_job(parsedBatch);
+            if (insertedIds == null) {
                 System.err.println("[J ERROR] MariaDB insert failed, skipping ES");
                 return;
             }
@@ -33,7 +35,7 @@ public class PacketProcessor {
                 return;
             }
 
-            repo.mark_es_indexed(parsedBatch);
+            repo.mark_es_indexed(insertedIds);
 
         } catch (Exception e) {
             System.err.println("[J ERROR] process_batch failed: " + e.getMessage());

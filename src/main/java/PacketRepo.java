@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.*;
+import java.util.List;
 
 public class PacketRepo {
     private static final String URL  = "jdbc:mysql://localhost:3306/nsm";
@@ -27,18 +28,21 @@ public class PacketRepo {
         return value.isMissingNode() || value.isNull() ? null : value.asText();
     }
 
-
-    // ── Public methods ───────────────────────────────────────────────────────
-    public Boolean create_insert_job(JsonNode parsedBatch) {
+    public List<Integer> create_insert_job(JsonNode parsedBatch) {
+        List<Integer> insertedIds = new java.util.ArrayList<>();
         try {
             String structuredSql = "INSERT INTO structured (packet, es_indexed) VALUES (?, ?)";
-            try (PreparedStatement stmt = connection.prepareStatement(structuredSql)) {
+            try (PreparedStatement stmt = connection.prepareStatement(
+                    structuredSql, Statement.RETURN_GENERATED_KEYS)) {
                 for (JsonNode packet : parsedBatch) {
                     stmt.setString(1, packet.toString());
                     stmt.setBoolean(2, false);
                     stmt.addBatch();
                 }
                 stmt.executeBatch();
+                try (ResultSet keys = stmt.getGeneratedKeys()) {
+                    while (keys.next()) insertedIds.add(keys.getInt(1));
+                }
             }
 
             for (JsonNode packet : parsedBatch) {
@@ -50,14 +54,14 @@ public class PacketRepo {
             connection.setAutoCommit(true);
             connection.setAutoCommit(false);
             System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets into MySQL");
-            return Boolean.TRUE;
+            return insertedIds;
 
         } catch (SQLException e) {
             System.err.println("[J ERROR] Insert failed, rolling back: " + e.getMessage());
             try { connection.rollback(); } catch (SQLException ex) {
                 System.err.println("[J ERROR] Rollback failed: " + ex.getMessage());
             }
-            return Boolean.FALSE;
+            return null;
         }
     }
 
@@ -75,7 +79,7 @@ public class PacketRepo {
         }
     }
 
-    public Boolean mark_es_indexed(java.util.List<Integer> ids) {
+    public Boolean mark_es_indexed(List<Integer> ids) {
         String sql = "UPDATE structured SET es_indexed = true WHERE id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             for (int id : ids) {
@@ -117,7 +121,7 @@ public class PacketRepo {
         }
     }
 
-    // ── Layer routing ────────────────────────────────────────────────────────
+    // Layer routing
     private void insertLayer(JsonNode packet, long baseId) throws SQLException {
         String protocol = text(packet, "protocol") != null ? text(packet, "protocol") : "UNKNOWN";
         JsonNode l = packet.path("layers");
