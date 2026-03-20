@@ -1,5 +1,6 @@
 from capture import init_capture
 from services import start_services
+from config import check_dependencies
 import time
 import json
 import subprocess
@@ -44,9 +45,7 @@ class JavaParser:
 
 
 class Pipeline:
-    JAR_PATH = r"target/wireshark-parser-1.0-SNAPSHOT.jar"
-    FLUSH_INTERVAL = 15.0
-    MAX_BATCH = 1000
+    from config import MAX_BATCH, FLUSH_INTERVAL, JAR_PATH
 
     def __init__(self):
         self.process = None
@@ -165,6 +164,7 @@ class Pipeline:
 if __name__ == "__main__":
     pipeline = Pipeline()
     try:
+        check_dependencies()
         pipeline.start()
         pipeline.run()
     finally:
