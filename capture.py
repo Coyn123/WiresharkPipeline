@@ -2,13 +2,12 @@ import sys
 import time
 import subprocess
 from datetime import datetime
+from config import TSHARK_PATH
 
 
 def init_capture():
     cmd = [
-        # C:\Program Files\Wireshark
-        # /Applications/Wireshark.app/Contents/MacOS/tshark
-        r"C:\Program Files\Wireshark",
+        f"{TSHARK_PATH}",
         "-n",
         "-i", "1",
         "-T", "ek",
