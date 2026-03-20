@@ -2,11 +2,12 @@ import subprocess
 import time
 import requests
 import pymysql
+from config import *
 
 def start_elasticsearch():
     print("[INFO] Starting Elasticsearch...")
     subprocess.Popen(
-        ["/opt/homebrew/bin/elasticsearch"],
+        [f"{ES_BIN}"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -26,14 +27,14 @@ def start_elasticsearch():
 def start_mysql():
     print("[INFO] Starting MySQL...")
     subprocess.run(
-        ["/Applications/XAMPP/xamppfiles/bin/mysql.server", "start"],
+        [f"{MYSQL_BIN}", "start"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
     # wait for MySQL to be ready
     for i in range(15):
         try:
-            conn = pymysql.connect(host="localhost", user="root", password="", database="nsm")
+            conn = pymysql.connect(host=f"{MYSQL_HOST}", user=f"{MYSQL_USER}", password=f"{MYSQL_PASS}", database=f"{MYSQL_DB}")
             conn.close()
             print("[INFO] MySQL is up")
             return True
