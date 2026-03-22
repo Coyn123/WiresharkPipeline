@@ -1,8 +1,10 @@
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class PacketProcessor {
+
     private final PacketParse parser;
     private final PacketRepo repo;
     private final PacketIndex index;
@@ -16,7 +18,7 @@ public class PacketProcessor {
 
     public void process_batch(JsonNode batch) {
         try {
-            JsonNode parsedBatch = parser.create_parsed_batch(batch);
+            List<PacketRecords.ParsedPacket> parsedBatch = parser.create_parsed_batch(batch);
 
             if (parsedBatch == null || parsedBatch.isEmpty()) {
                 System.err.println("[J WARN] parsedBatch is empty, skipping");
@@ -25,11 +27,16 @@ public class PacketProcessor {
 
             List<Integer> insertedIds = repo.create_insert_job(parsedBatch);
             if (insertedIds == null) {
-                System.err.println("[J ERROR] MariaDB insert failed, skipping ES");
+                System.err.println("[J ERROR] MySQL insert failed, skipping ES");
                 return;
             }
 
-            boolean esSuccess = index.index_batch(parsedBatch);
+            List<JsonNode> jsonBatch = new ArrayList<>();
+            for (PacketRecords.ParsedPacket p : parsedBatch) {
+                jsonBatch.add(p.json());
+            }
+
+            boolean esSuccess = index.index_batch(jsonBatch, insertedIds);
             if (!esSuccess) {
                 System.err.println("[J ERROR] ES index failed — es_indexed stays false");
                 return;

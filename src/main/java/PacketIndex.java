@@ -7,15 +7,17 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PacketIndex {
+
     private final RestClient client;
     private final PacketRepo repo;
     private final Connection connection;
@@ -30,35 +32,39 @@ public class PacketIndex {
         ).build();
         System.err.println("[J DEBUG] Elasticsearch client connected");
     }
+
+    // Converts the stored "yyyy-MM-dd HH:mm:ss" datetime string to ISO-8601
+    // format that Elasticsearch expects for its @timestamp field.
     private String convertToISO8601(String rawTimestamp) {
         try {
-            java.time.format.DateTimeFormatter inputFmt = java.time.format.DateTimeFormatter
+            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter
                     .ofPattern("yyyy-MM-dd HH:mm:ss");
-            java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(rawTimestamp, inputFmt);
+            java.time.LocalDateTime ldt = java.time.LocalDateTime.parse(rawTimestamp, fmt);
             return ldt.atOffset(java.time.ZoneOffset.UTC).toString();
         } catch (Exception e) {
             System.err.println("[J WARN] Could not parse timestamp: " + rawTimestamp);
             return rawTimestamp;
         }
     }
+
     public void retryUnindexed() {
         String sql = "SELECT id, packet FROM structured WHERE es_indexed = false";
         try (PreparedStatement stmt = connection.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
 
-            ArrayNode missed = objectMapper.createArrayNode();
-            java.util.List<Integer> ids = new java.util.ArrayList<>();
+            List<Integer> ids = new ArrayList<>();
+            List<JsonNode> packets = new ArrayList<>();
 
             while (rs.next()) {
                 ids.add(rs.getInt("id"));
-                missed.add(objectMapper.readTree(rs.getString("packet")));
+                packets.add(objectMapper.readTree(rs.getString("packet")));
             }
 
-            if (missed.isEmpty()) return;
+            if (ids.isEmpty()) return;
 
-            System.err.println("[J DEBUG] Retrying " + missed.size() + " un-indexed packets");
+            System.err.println("[J DEBUG] Retrying " + ids.size() + " un-indexed packets");
 
-            boolean esSuccess = index_batch(missed);
+            boolean esSuccess = index_batch(packets, ids);
             if (esSuccess) {
                 repo.mark_es_indexed(ids);
             }
@@ -67,27 +73,37 @@ public class PacketIndex {
             System.err.println("[J ERROR] retryUnindexed failed: " + e.getMessage());
         }
     }
-    public boolean index_batch(JsonNode parsedBatch) {
+    public boolean index_batch(List<JsonNode> packets, List<Integer> ids) {
         try {
             StringBuilder bulkBody = new StringBuilder();
 
-            for (JsonNode packet : parsedBatch) {
+            for (int i = 0; i < packets.size(); i++) {
+                JsonNode packet = packets.get(i);
+                int id = ids.get(i);
+
                 ObjectNode doc = (ObjectNode) packet.deepCopy();
-                String rawTs = packet.path("base").path("timestamp").asText(null);
+
+                String rawTs = packet.path("base").path("timestamp").textValue();
                 if (rawTs != null && !rawTs.isBlank()) {
                     doc.put("@timestamp", convertToISO8601(rawTs));
                 } else {
                     doc.put("@timestamp", java.time.Instant.now().toString());
                 }
-                // bulk action line
-                bulkBody.append("{\"index\":{\"_index\":\"").append(INDEX).append("\"}}\n");
-                // document line
+
+                // Action line — _id ties this document to its MySQL row
+                bulkBody.append("{\"index\":{\"_index\":\"")
+                        .append(INDEX)
+                        .append("\",\"_id\":\"")
+                        .append(id)
+                        .append("\"}}\n");
+
+                // Document line
                 bulkBody.append(objectMapper.writeValueAsString(doc)).append("\n");
             }
 
-            Request request     = new Request("POST", "/_bulk");
+            Request request = new Request("POST", "/_bulk");
             request.setEntity(new StringEntity(bulkBody.toString(), ContentType.APPLICATION_JSON));
-            Response response   = client.performRequest(request);
+            Response response = client.performRequest(request);
 
             String responseBody = EntityUtils.toString(response.getEntity());
             JsonNode responseJson = objectMapper.readTree(responseBody);
@@ -97,7 +113,7 @@ public class PacketIndex {
                 return false;
             }
 
-            System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets into ES");
+            System.err.println("[J DEBUG] Inserted " + packets.size() + " packets into ES");
             return true;
 
         } catch (IOException e) {
@@ -105,6 +121,7 @@ public class PacketIndex {
             return false;
         }
     }
+
     public void close() {
         try {
             client.close();

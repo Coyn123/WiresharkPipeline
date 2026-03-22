@@ -5,10 +5,10 @@ public class PacketClassify {
     public PacketRecords.Protocol classify(JsonNode packet) {
         JsonNode layers = packet.path("layers");
 
-        if (!layers.path("tls_record_version").isMissingNode()) return PacketRecords.Protocol.TLS;
-        if (!layers.path("dns_qry_name").isMissingNode()) return PacketRecords.Protocol.DNS;
-        if (!layers.path("udp_srcport").isMissingNode()) return PacketRecords.Protocol.UDP;
-        if (!layers.path("tcp_srcport").isMissingNode()) return PacketRecords.Protocol.TCP;
+        if (!layers.path(PacketFields.TLS_RECORD_VERSION).isMissingNode()) return PacketRecords.Protocol.TLS;
+        if (!layers.path(PacketFields.DNS_QRY_NAME).isMissingNode()) return PacketRecords.Protocol.DNS;
+        if (!layers.path(PacketFields.UDP_SRC_PORT).isMissingNode()) return PacketRecords.Protocol.UDP;
+        if (!layers.path(PacketFields.UDP_DST_PORT).isMissingNode()) return PacketRecords.Protocol.TCP;
 
         return PacketRecords.Protocol.UNKNOWN;
     }

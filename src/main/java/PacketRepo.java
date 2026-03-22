@@ -3,7 +3,7 @@ import java.sql.*;
 import java.util.List;
 
 public class PacketRepo {
-    private static final String URL  = "jdbc:mysql://localhost:3306/nsm";
+    private static final String URL = "jdbc:mysql://localhost:3306/nsm";
     private static final String USER = "root";
     private static final String PASS = "";
 
@@ -23,19 +23,17 @@ public class PacketRepo {
         return this.connection;
     }
 
-    private String text(JsonNode node, String field) {
-        JsonNode value = node.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.textValue();
-    }
-
-    public List<Integer> create_insert_job(JsonNode parsedBatch) {
+    // Accepts List<ParsedPacket> instead of JsonNode — each ParsedPacket carries
+    // typed records directly so insertBase and insertLayer no longer need to
+    // deserialize field values from JSON by string key lookup.
+    public List<Integer> create_insert_job(List<PacketRecords.ParsedPacket> batch) {
         List<Integer> insertedIds = new java.util.ArrayList<>();
         try {
             String structuredSql = "INSERT INTO structured (packet, es_indexed) VALUES (?, ?)";
             try (PreparedStatement stmt = connection.prepareStatement(
                     structuredSql, Statement.RETURN_GENERATED_KEYS)) {
-                for (JsonNode packet : parsedBatch) {
-                    stmt.setString(1, packet.toString());
+                for (PacketRecords.ParsedPacket p : batch) {
+                    stmt.setString(1, p.json().toString());
                     stmt.setBoolean(2, false);
                     stmt.addBatch();
                 }
@@ -45,13 +43,13 @@ public class PacketRepo {
                 }
             }
 
-            for (JsonNode packet : parsedBatch) {
-                long baseId = insertBase(packet);
-                insertLayer(packet, baseId);
+            for (PacketRecords.ParsedPacket p : batch) {
+                long baseId = insertBase(p.base(), p.protocol());
+                insertLayer(p.detail(), baseId);
             }
 
             connection.commit();
-            System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets into MySQL");
+            System.err.println("[J DEBUG] Inserted " + batch.size() + " packets into MySQL");
             return insertedIds;
 
         } catch (SQLException e) {
@@ -63,7 +61,7 @@ public class PacketRepo {
         }
     }
 
-    // Generic insert function
+    // Generic insert — unchanged, still builds the SQL from column/value arrays.
     private void insertRow(String table, long baseId, String[] columns, String[] values) throws SQLException {
         String placeholders = "?, " + "?, ".repeat(columns.length).replaceAll(", $", "");
         String sql = "INSERT INTO " + table + " (base_packet_id, " + String.join(", ", columns) + ") VALUES (" + placeholders + ")";
@@ -97,49 +95,45 @@ public class PacketRepo {
         }
     }
 
-    // Base insert
-    private long insertBase(JsonNode packet) throws SQLException {
+    private long insertBase(PacketRecords.BasePacket base, PacketRecords.Protocol protocol) throws SQLException {
         String sql = """
             INSERT INTO base
                 (timestamp, ip_src, ip_dst, ip_version, ip_proto, frame_len, ip_ttl, protocol)
             VALUES (STR_TO_DATE(?, '%Y-%m-%d %H:%i:%s'), ?, ?, ?, ?, ?, ?, ?)
         """;
-        JsonNode base = packet.path("base");
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, text(base, "timestamp"));
-            stmt.setString(2, text(base, "ip_src"));
-            stmt.setString(3, text(base, "ip_dst"));
-            stmt.setString(4, text(base, "ip_version"));
-            stmt.setString(5, text(base, "ip_proto"));
-            stmt.setString(6, text(base, "frame_len"));
-            stmt.setString(7, text(base, "ip_ttl"));
-            stmt.setString(8, text(packet, "protocol"));
+            stmt.setString(1, base.timestamp());
+            stmt.setString(2, base.ipSrc());
+            stmt.setString(3, base.ipDst());
+            stmt.setString(4, base.ipVersion());
+            stmt.setString(5, base.ipProto());
+            stmt.setString(6, base.frameLen());
+            stmt.setString(7, base.ipTtl());
+            stmt.setString(8, protocol.name());
             stmt.executeUpdate();
             return getGeneratedKey(stmt);
         }
     }
 
-    // Layer routing
-    private void insertLayer(JsonNode packet, long baseId) throws SQLException {
-        String protocol = text(packet, "protocol") != null ? text(packet, "protocol") : "UNKNOWN";
-        JsonNode l = packet.path("detail");
+    private void insertLayer(PacketRecords.ProtocolDetail detail, long baseId) throws SQLException {
+        if (detail == null) return;
 
-        switch (protocol) {
-            case "TCP" -> insertRow("tcp", baseId,
+        switch (detail) {
+            case PacketRecords.TcpPacket t -> insertRow("tcp", baseId,
                     new String[]{"src_port", "dst_port", "flags", "seq", "ack", "window_size"},
-                    new String[]{text(l,"srcPort"), text(l,"dstPort"), text(l,"flags"), text(l,"seq"), text(l,"ack"), text(l,"windowSize")}
+                    new String[]{t.srcPort(), t.dstPort(), t.flags(), t.seq(), t.ack(), t.windowSize()}
             );
-            case "UDP" -> insertRow("udp", baseId,
+            case PacketRecords.UdpPacket u -> insertRow("udp", baseId,
                     new String[]{"src_port", "dst_port", "length"},
-                    new String[]{text(l,"srcPort"), text(l,"dstPort"), text(l,"length")}
+                    new String[]{u.srcPort(), u.dstPort(), u.length()}
             );
-            case "DNS" -> insertRow("dns", baseId,
+            case PacketRecords.DnsPacket d -> insertRow("dns", baseId,
                     new String[]{"query_name", "query_type", "resolved_ip", "rcode"},
-                    new String[]{text(l,"queryName"), text(l,"queryType"), text(l,"resolvedIp"), text(l,"rcode")}
+                    new String[]{d.queryName(), d.queryType(), d.resolvedIp(), d.rcode()}
             );
-            case "TLS" -> insertRow("tls", baseId,
+            case PacketRecords.TlsPacket tl -> insertRow("tls", baseId,
                     new String[]{"sni", "record_version", "cipher_suite", "handshake_type"},
-                    new String[]{text(l,"sni"), text(l,"recordVersion"), text(l,"cipherSuite"), text(l,"handshakeType")}
+                    new String[]{tl.sni(), tl.recordVersion(), tl.cipherSuite(), tl.handshakeType()}
             );
         }
     }

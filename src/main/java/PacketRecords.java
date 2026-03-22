@@ -29,6 +29,12 @@ public class PacketRecords {
                     .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
         }
     }
+    public record ParsedPacket(
+                com.fasterxml.jackson.databind.JsonNode json,
+                Protocol protocol,
+                BasePacket base,
+                ProtocolDetail detail
+    ) {}
 
     public sealed interface ProtocolDetail
             permits TcpPacket, UdpPacket, DnsPacket, TlsPacket {}
@@ -120,18 +126,20 @@ public class PacketRecords {
     ) implements ProtocolDetail {
         public TlsPacket {
             if (recordVersion != null) recordVersion = toVersion(recordVersion);
-            if (cipherSuite   != null) cipherSuite   = toCipher(cipherSuite);
+            if (cipherSuite != null) cipherSuite = toCipher(cipherSuite);
             if (handshakeType != null) handshakeType = toHandshake(handshakeType);
         }
+
         private static String toVersion(String v) {
             return switch (v) {
                 case "0x0301" -> "TLS 1.0";
                 case "0x0302" -> "TLS 1.1";
                 case "0x0303" -> "TLS 1.2/1.3";
                 case "0x0304" -> "TLS 1.3";
-                default       -> "UNKNOWN (" + v + ")";
+                default -> "UNKNOWN (" + v + ")";
             };
         }
+
         private static String toCipher(String c) {
             return switch (c.toLowerCase()) {
                 // TLS 1.3 suites
@@ -162,9 +170,9 @@ public class PacketRecords {
                 case "0x009c" -> "TLS_RSA_WITH_AES_128_GCM_SHA256";
                 case "0x009d" -> "TLS_RSA_WITH_AES_256_GCM_SHA384";
                 default -> "UNKNOWN (" + c + ")";
-                };
-            }
+            };
         }
+
         private static String toHandshake(String h) {
             return switch (h) {
                 case "1" -> "CLIENT HELLO";
@@ -180,5 +188,6 @@ public class PacketRecords {
                 case "20" -> "FINISHED";
                 default -> "UNKNOWN (" + h + ")";
             };
+        }
     }
 }
