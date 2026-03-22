@@ -40,7 +40,7 @@ public class Main {
                 stdout.println("{\"status\": \"error\", \"count\": 0}");
             }
         }
-
+        pp.close();
         System.err.println("[JAVA] shutting down");
     }
 }

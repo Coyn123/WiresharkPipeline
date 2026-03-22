@@ -48,4 +48,7 @@ public class PacketProcessor {
             System.err.println("[J ERROR] process_batch failed: " + e.getMessage());
         }
     }
+    public void close() {
+        index.close();
+    }
 }

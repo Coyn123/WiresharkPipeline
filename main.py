@@ -41,6 +41,8 @@ class Pipeline:
         )
 
     def flush(self):
+        if not self.java.batch:
+            return
         result = self.java.flush()
         self.last_flush = time.time()
         print(f"[INFO] Java batch result: {result}", flush=True)
