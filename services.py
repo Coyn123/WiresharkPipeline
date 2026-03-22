@@ -14,11 +14,10 @@ from config import (
 # MySQL
 def start_mysql():
     print("[INFO] Starting MySQL...", flush=True)
-    cmd = [MYSQL_BIN, "--console"] if OS == "Windows" else [MYSQL_BIN]
     if OS == "Windows":
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+        subprocess.Popen([MYSQL_BIN, "--console"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
     else:
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["sudo", MYSQL_BIN, "startmysql"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     for _ in range(15):
         try:

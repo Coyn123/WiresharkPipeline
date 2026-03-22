@@ -18,7 +18,7 @@ match OS:
         #BASE_DIR = os.path.expanduser("~/Library/Application Support/WiresharkPipeline")
         TSHARK_PATH = "/Applications/Wireshark.app/Contents/MacOS/tshark"
         ES_BIN = "/opt/homebrew/bin/elasticsearch"
-        MYSQL_BIN = "/Applications/XAMPP/bin/mysql"
+        MYSQL_BIN = "/Applications/XAMPP/xamppfiles/xampp"
         MYSQL_HOST = "localhost"
         MYSQL_PORT = 3306
         ES_HOST = "localhost"
@@ -28,7 +28,7 @@ match OS:
         #BASE_DIR = os.path.expanduser("~/.local/share/WiresharkPipeline")
         TSHARK_PATH = "/usr/bin/tshark"
         ES_BIN = "/usr/share/elasticsearch/bin/elasticsearch"
-        MYSQL_BIN = "/usr/bin/mysql"
+        MYSQL_BIN = "/Applications/XAMPP/bin/mysql.server"
         MYSQL_HOST = "localhost"
         MYSQL_PORT = 3306
         ES_HOST = "localhost"
