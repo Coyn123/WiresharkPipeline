@@ -25,7 +25,7 @@ public class PacketRepo {
 
     private String text(JsonNode node, String field) {
         JsonNode value = node.path(field);
-        return value.isMissingNode() || value.isNull() ? null : value.asText();
+        return value.isMissingNode() || value.isNull() ? null : value.textValue();
     }
 
     public List<Integer> create_insert_job(JsonNode parsedBatch) {
@@ -51,8 +51,6 @@ public class PacketRepo {
             }
 
             connection.commit();
-            connection.setAutoCommit(true);
-            connection.setAutoCommit(false);
             System.err.println("[J DEBUG] Inserted " + parsedBatch.size() + " packets into MySQL");
             return insertedIds;
 
@@ -109,12 +107,12 @@ public class PacketRepo {
         JsonNode base = packet.path("base");
         try (PreparedStatement stmt = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, text(base, "timestamp"));
-            stmt.setString(2, text(base, "ipSrc"));
-            stmt.setString(3, text(base, "ipDst"));
-            stmt.setString(4, text(base, "ipVersion"));
-            stmt.setString(5, text(base, "ipProto"));
-            stmt.setString(6, text(base, "frameLen"));
-            stmt.setString(7, text(base, "ipTtl"));
+            stmt.setString(2, text(base, "ip_src"));
+            stmt.setString(3, text(base, "ip_dst"));
+            stmt.setString(4, text(base, "ip_version"));
+            stmt.setString(5, text(base, "ip_proto"));
+            stmt.setString(6, text(base, "frame_len"));
+            stmt.setString(7, text(base, "ip_ttl"));
             stmt.setString(8, text(packet, "protocol"));
             stmt.executeUpdate();
             return getGeneratedKey(stmt);
@@ -124,7 +122,7 @@ public class PacketRepo {
     // Layer routing
     private void insertLayer(JsonNode packet, long baseId) throws SQLException {
         String protocol = text(packet, "protocol") != null ? text(packet, "protocol") : "UNKNOWN";
-        JsonNode l = packet.path("layers");
+        JsonNode l = packet.path("detail");
 
         switch (protocol) {
             case "TCP" -> insertRow("tcp", baseId,

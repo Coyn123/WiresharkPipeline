@@ -1,14 +1,16 @@
 import sys
 import time
+import queue
+import threading
 import subprocess
-from datetime import datetime
 from config import get_active_interface, TSHARK_PATH
 
+
+# tshark process
 def init_capture():
     cmd = [
-        f"{TSHARK_PATH}",
+        TSHARK_PATH,
         "-n",
-              #Config.py helper
         "-i", get_active_interface(),
         "-T", "ek",
         "-l",
@@ -24,6 +26,11 @@ def init_capture():
         "-e", "ip.proto",
         "-e", "frame.len",
         "-e", "ip.ttl",
+
+        "-e", "ipv6.src",
+        "-e", "ipv6.dst",
+        "-e", "ipv6.nxt",
+        "-e", "ipv6.hlim",
 
         # TCP
         "-e", "tcp.srcport",
@@ -51,8 +58,6 @@ def init_capture():
         "-e", "tls.handshake.type",
     ]
 
-
-
     try:
         process = subprocess.Popen(
             cmd,
@@ -62,16 +67,43 @@ def init_capture():
             bufsize=1
         )
 
-        # Give tshark time to start and emit errors
         time.sleep(0.2)
 
-        # Check for startup errors
         if process.poll() is not None:
-            err = process.stderr.read()
-            raise RuntimeError(f"TShark exited immediately:\n{err}")
+            raise RuntimeError(f"TShark exited immediately:\n{process.stderr.read()}")
 
         return process
 
-    except (OSError, Exception, RuntimeError) as e:
-        print("[ERROR] Failed:", e, flush=True)
+    except (OSError, RuntimeError) as e:
+        print(f"[ERROR] TShark failed to start: {e}", flush=True)
         sys.exit(1)
+
+def drain_stderr(process):
+    for line in process.stderr:
+        print(f"  [tshark] {line}", end="", flush=True)
+
+
+# packet reader
+def read_packets(process, on_idle=None):
+    q = queue.Queue()
+
+    def reader():
+        for line in process.stdout:
+            q.put(line)
+        q.put(None) # sentinel
+
+    threading.Thread(target=reader, daemon=True).start()
+
+    while True:
+        try:
+            line = q.get(timeout=5.0)
+        except queue.Empty:
+            if on_idle:
+                on_idle()
+            continue
+        if line is None:
+            break
+        line = line.strip()
+        if not line or line.startswith('{"index":'):
+            continue
+        yield line
