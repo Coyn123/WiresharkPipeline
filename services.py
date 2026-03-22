@@ -15,7 +15,7 @@ from config import (
 def start_mysql():
     print("[INFO] Starting MySQL...", flush=True)
     cmd = [MYSQL_BIN, "--console"] if OS == "Windows" else [MYSQL_BIN]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNUL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
 
     for _ in range(15):
         try:
