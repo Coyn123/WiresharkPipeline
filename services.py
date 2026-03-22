@@ -15,6 +15,10 @@ from config import (
 def start_mysql():
     print("[INFO] Starting MySQL...", flush=True)
     cmd = [MYSQL_BIN, "--console"] if OS == "Windows" else [MYSQL_BIN]
+    if OS == "Windows":
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
 
     for _ in range(15):
@@ -37,7 +41,10 @@ def start_mysql():
 def start_elasticsearch():
     print("[INFO] Starting Elasticsearch...", flush=True)
     cmd = ["cmd.exe", "/c", ES_BIN] if OS == "Windows" else [ES_BIN]
-    subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    if OS == "Windows":
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     for _ in range(60):
         try:

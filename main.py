@@ -11,7 +11,6 @@ class Pipeline:
     def __init__(self):
         self.tshark = None
         self.java = None
-        self.seq = 0
         self.count = 0
         self.last_flush = time.time()
         self.interrupted = False
@@ -33,7 +32,7 @@ class Pipeline:
         print("[INFO] Java parser started.", flush=True)
 
     #Flush
-    def _should_flush(self):
+    def should_flush(self):
         if not self.java.batch:
             return False
         return (
@@ -41,7 +40,7 @@ class Pipeline:
             or time.time() - self.last_flush >= FLUSH_INTERVAL
         )
 
-    def _flush(self):
+    def flush(self):
         result = self.java.flush()
         self.last_flush = time.time()
         print(f"[INFO] Java batch result: {result}", flush=True)
@@ -50,11 +49,11 @@ class Pipeline:
     def run(self):
         print("[INFO] Reading live packets...", flush=True)
         try:
-            for raw in read_packets(self.tshark, on_idle=self._flush):
+            for raw in read_packets(self.tshark, on_idle=self.flush):
                 self.count += 1
                 self.java.add(raw)
-                if self._should_flush():
-                    self._flush()
+                if self.should_flush():
+                    self.flush()
 
         except KeyboardInterrupt:
             self.interrupted = True
@@ -66,10 +65,10 @@ class Pipeline:
     def stop(self):
         print("[INFO] Cleaning up...", flush=True)
 
-        if self.java and self.count > 0 and not self.interrupted:
+        if self.java and self.count > 0:
             try:
                 if self.java.is_alive():
-                    self._flush()
+                    self.flush()
             except Exception as e:
                 print(f"[WARN] Final flush failed: {e}", flush=True)
 

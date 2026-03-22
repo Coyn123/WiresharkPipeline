@@ -14,9 +14,6 @@ def init_capture():
         "-i", get_active_interface(),
         "-T", "ek",
         "-l",
-        "-E", "separator=,",
-        "-E", "occurrence=f",
-        "-E", "header=n",
 
         # Base fields
         "-e", "frame.time",

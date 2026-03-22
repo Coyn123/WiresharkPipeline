@@ -15,7 +15,7 @@ public class PacketRepo {
             this.connection.setAutoCommit(false);
             System.err.println("[J DEBUG] MySQL connected successfully");
         } catch (SQLException e) {
-            System.err.println("[J ERROR] MySQL connection failed: " + e.getMessage());
+            throw new RuntimeException("[J ERROR] MySQL connection failed: " + e.getMessage(), e);
         }
     }
 
@@ -23,9 +23,6 @@ public class PacketRepo {
         return this.connection;
     }
 
-    // Accepts List<ParsedPacket> instead of JsonNode — each ParsedPacket carries
-    // typed records directly so insertBase and insertLayer no longer need to
-    // deserialize field values from JSON by string key lookup.
     public List<Integer> create_insert_job(List<PacketRecords.ParsedPacket> batch) {
         List<Integer> insertedIds = new java.util.ArrayList<>();
         try {
@@ -61,7 +58,7 @@ public class PacketRepo {
         }
     }
 
-    // Generic insert — unchanged, still builds the SQL from column/value arrays.
+    // Generic insert
     private void insertRow(String table, long baseId, String[] columns, String[] values) throws SQLException {
         String placeholders = "?, " + "?, ".repeat(columns.length).replaceAll(", $", "");
         String sql = "INSERT INTO " + table + " (base_packet_id, " + String.join(", ", columns) + ") VALUES (" + placeholders + ")";
