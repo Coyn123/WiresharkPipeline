@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.databind.JsonNode;
 import java.sql.*;
+import java.util.Collections;
 import java.util.List;
 
 public class PacketRepo {
@@ -35,10 +36,15 @@ public class PacketRepo {
                     stmt.addBatch();
                 }
                 stmt.executeBatch();
-                try (ResultSet keys = stmt.getGeneratedKeys()) {
-                    while (keys.next()) insertedIds.add(keys.getInt(1));
+                try (PreparedStatement idStmt = connection.prepareStatement(
+                        "SELECT id FROM structured ORDER BY id DESC LIMIT ?")) {
+                    idStmt.setInt(1, batch.size());
+                    try (ResultSet rs = idStmt.executeQuery()) {
+                        while (rs.next()) insertedIds.add(rs.getInt(1));
+                    }
                 }
             }
+                Collections.reverse(insertedIds);
 
             for (PacketRecords.ParsedPacket p : batch) {
                 long baseId = insertBase(p.base(), p.protocol());

@@ -82,11 +82,11 @@ def drain_stderr(process):
 
 # packet reader
 def read_packets(process, on_idle=None):
-    q = queue.Queue()
+    q = queue.Queue(maxsize=5000)
 
     def reader():
         for line in process.stdout:
-            q.put(line)
+            q.put(line, block=True, timeout=2.0)
         q.put(None) # sentinel
 
     threading.Thread(target=reader, daemon=True).start()

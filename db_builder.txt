@@ -17,7 +17,7 @@ CREATE TABLE base (
     ip_src VARCHAR(45),
     ip_dst VARCHAR(45),
     ip_version VARCHAR(5),
-    ip_proto VARCHAR(5),
+    ip_proto VARCHAR(10),
     frame_len VARCHAR(10),
     ip_ttl VARCHAR(5),
     protocol VARCHAR(10)

@@ -1,5 +1,7 @@
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Map;
+
 public class PacketRecords {
     public enum Protocol {
         TCP,
@@ -17,10 +19,22 @@ public class PacketRecords {
             @JsonProperty("frame_len") String frameLen,
             @JsonProperty("ip_ttl") String ipTtl
     ) {
+        private static final Map<String, String> PROTO_NAMES = Map.of(
+                "0",  "HOPOPT",
+                "1",  "ICMP",
+                "2",  "IGMP",
+                "6",  "TCP",
+                "17", "UDP",
+                "41", "IPv6",
+                "47", "GRE",
+                "50", "ESP",
+                "58", "ICMPv6"
+        );
+
         public BasePacket {
             timestamp = formatTimestamp(timestamp);
+            ipProto = ipProto != null ? PROTO_NAMES.getOrDefault(ipProto, ipProto) : null;
         }
-
         private static String formatTimestamp(String raw) {
             if (raw == null) return null;
             long millis = Long.parseLong(raw);
